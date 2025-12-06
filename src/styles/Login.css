@@ -1,0 +1,171 @@
+.login-page-bg {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.8)), url('https://images.unsplash.com/photo-1503376763036-066120622c74?auto=format&fit=crop&w=1920&q=80');
+    background-size: cover;
+    background-position: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1001;
+    /* Above everything else */
+}
+
+.login-container {
+    width: 100%;
+    max-width: 400px;
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    padding: 40px;
+    border-radius: 15px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+    border: 1px solid #333;
+    text-align: center;
+    color: var(--text-light);
+    position: relative;
+}
+
+.login-logo {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 20px;
+    display: block;
+}
+
+.login-logo span {
+    color: var(--primary);
+}
+
+/* Toggle Buttons */
+.toggle-box {
+    display: flex;
+    background: #111;
+    border-radius: 30px;
+    margin-bottom: 30px;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid #333;
+}
+
+.toggle-btn {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    background: transparent;
+    color: #888;
+    cursor: pointer;
+    font-weight: bold;
+    transition: 0.3s;
+    z-index: 1;
+}
+
+.toggle-btn.active {
+    color: white;
+}
+
+/* The sliding red background simulated by direct style on component state in React or class modification */
+.toggled-bg {
+    position: absolute;
+    top: 0;
+    width: 50%;
+    height: 100%;
+    background: var(--primary);
+    border-radius: 30px;
+    transition: left 0.3s ease;
+    z-index: 0;
+}
+
+/* Input Fields */
+.input-group {
+    margin-bottom: 15px;
+    text-align: left;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+    color: #ccc;
+}
+
+.input-field {
+    width: 100%;
+    padding: 12px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 5px;
+    color: white;
+    box-sizing: border-box;
+    outline: none;
+}
+
+.input-field:focus {
+    border-color: var(--primary);
+}
+
+/* Buttons */
+.submit-btn {
+    width: 100%;
+    padding: 12px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 1rem;
+    cursor: pointer;
+    margin-top: 10px;
+    font-weight: bold;
+}
+
+.submit-btn:hover {
+    background: #b71c1c;
+}
+
+.google-btn {
+    width: 100%;
+    padding: 12px;
+    background: white;
+    color: #333;
+    border: none;
+    border-radius: 5px;
+    font-size: 1rem;
+    cursor: pointer;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-weight: bold;
+}
+
+.divider {
+    margin: 20px 0;
+    position: relative;
+}
+
+.divider::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 1px;
+    background: #444;
+    z-index: 0;
+}
+
+.divider span {
+    background: #1e1e1e;
+    padding: 0 10px;
+    position: relative;
+    z-index: 1;
+    color: #888;
+    font-size: 0.8rem;
+    /* This background needs to match the parent if glass, but hard to match blurry bg. 
+       We will use a dark bg for the span or transparent with a background blur strip? 
+       Just using dark grey to approximate. */
+    border-radius: 4px;
+}
