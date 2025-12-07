@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-    signInWithEmailAndPassword, 
-    createUserWithEmailAndPassword, 
-    signInWithPopup 
+import {
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    signInWithPopup
 } from 'firebase/auth';
 import { auth, googleProvider } from '../firebaseConfig'; // Ensure this path is correct
 import '../styles/Login.css';
 
 const LoginPage = () => {
-    const [activeTab, setActiveTab] = useState('login'); 
+    const [activeTab, setActiveTab] = useState('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [fullName, setFullName] = useState('');
@@ -51,7 +51,7 @@ const LoginPage = () => {
     };
 
     // --- LOGGING ADDED HERE ---
-   const handleGoogleLogin = async () => {
+    const handleGoogleLogin = async () => {
         console.log("1. Google Button Clicked");
         setError('');
 
@@ -63,11 +63,11 @@ const LoginPage = () => {
 
             console.log("2. Opening Google Popup...");
             const result = await signInWithPopup(auth, googleProvider);
-            
+
             console.log("3. Google Popup Finished. User:", result.user);
             console.log("4. Navigating to Store...");
             navigate('/store');
-            
+
         } catch (err) {
             console.error("ERROR during Google Login:", err);
             if (err.code === 'auth/popup-closed-by-user') {
@@ -81,7 +81,7 @@ const LoginPage = () => {
     return (
         <div className="login-page-bg">
             <div className="login-container">
-                <div className="login-logo">Auto<span>Spares</span></div>
+                <div className="login-logo">Evo<span>Parts</span></div>
 
                 <button className="google-btn" onClick={handleGoogleLogin}>
                     <i className="fab fa-google"></i> Continue with Google
@@ -89,7 +89,7 @@ const LoginPage = () => {
 
                 <div className="divider"><span>OR CONTINUE WITH EMAIL</span></div>
 
-                {error && <div style={{color: '#ff4444', marginBottom: '15px', fontWeight: 'bold'}}>{error}</div>}
+                {error && <div style={{ color: '#ff4444', marginBottom: '15px', fontWeight: 'bold' }}>{error}</div>}
 
                 <div className="toggle-box">
                     <div
@@ -114,24 +114,24 @@ const LoginPage = () => {
                     <form className="form-section active" onSubmit={handleLogin}>
                         <div className="input-group">
                             <label>Email Address</label>
-                            <input 
-                                type="email" 
-                                className="input-field" 
-                                placeholder="john@example.com" 
+                            <input
+                                type="email"
+                                className="input-field"
+                                placeholder="john@example.com"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                required 
+                                required
                             />
                         </div>
                         <div className="input-group">
                             <label>Password</label>
-                            <input 
-                                type="password" 
-                                className="input-field" 
-                                placeholder="••••••••" 
+                            <input
+                                type="password"
+                                className="input-field"
+                                placeholder="••••••••"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                required 
+                                required
                             />
                         </div>
                         <button type="submit" className="submit-btn">Log In</button>
@@ -142,35 +142,35 @@ const LoginPage = () => {
                     <form className="form-section active" onSubmit={handleSignup}>
                         <div className="input-group">
                             <label>Full Name</label>
-                            <input 
-                                type="text" 
-                                className="input-field" 
-                                placeholder="John Doe" 
+                            <input
+                                type="text"
+                                className="input-field"
+                                placeholder="John Doe"
                                 value={fullName}
                                 onChange={(e) => setFullName(e.target.value)}
-                                required 
+                                required
                             />
                         </div>
                         <div className="input-group">
                             <label>Email Address</label>
-                            <input 
-                                type="email" 
-                                className="input-field" 
-                                placeholder="john@example.com" 
+                            <input
+                                type="email"
+                                className="input-field"
+                                placeholder="john@example.com"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                required 
+                                required
                             />
                         </div>
                         <div className="input-group">
                             <label>Create Password</label>
-                            <input 
-                                type="password" 
-                                className="input-field" 
-                                placeholder="••••••••" 
+                            <input
+                                type="password"
+                                className="input-field"
+                                placeholder="••••••••"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                required 
+                                required
                             />
                         </div>
                         <button type="submit" className="submit-btn">Create Account</button>

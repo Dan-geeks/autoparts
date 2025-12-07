@@ -1,74 +1,117 @@
-import React, { useState } from 'react';
-import { parts as initialParts } from '../data/parts';
-import CartModal from '../components/CartModal';
-import AdminModal from '../components/AdminModal';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import Footer from '../components/Footer';
+import { db } from '../firebaseConfig';
+import { collection, query, onSnapshot, addDoc, getDocs, where } from "firebase/firestore";
 import '../styles/Store.css';
 
 const StorePage = () => {
-    const [parts, setParts] = useState(initialParts);
-    const [cart, setCart] = useState([]);
+    const navigate = useNavigate();
+    const [parts, setParts] = useState([]);
+    const [cart, setCart] = useState(() => {
+        const saved = localStorage.getItem('cart');
+        return saved ? JSON.parse(saved) : [];
+    });
+
+    useEffect(() => {
+        localStorage.setItem('cart', JSON.stringify(cart));
+    }, [cart]);
     const [isCartOpen, setIsCartOpen] = useState(false);
-    const [isAdminOpen, setIsAdminOpen] = useState(false);
+    const [filters, setFilters] = useState({ brand: 'all', year: 'all' });
 
-    const [filters, setFilters] = useState({
-        brand: 'all',
-        year: 'all'
-    });
+    // Computed Lists for Dropdowns
+    const [brandList, setBrandList] = useState([]);
+    const [yearList, setYearList] = useState([]);
 
-    // Derived state for filtered parts
+    useEffect(() => {
+        const q = query(collection(db, "spareParts"));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const loadedParts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setParts(loadedParts);
+
+            // 1. Extract Unique Brands & Years from Data
+            const dataBrands = [...new Set(loadedParts.map(p => p.brand).filter(b => b))];
+            const dataYears = [...new Set(loadedParts.map(p => p.year).filter(y => y))];
+
+            // 2. Define Defaults (if data is empty)
+            const defaultBrands = [
+                "Toyota", "BMW", "Mercedes", "Honda", "Nissan",
+                "Subaru", "Volkswagen", "Audi", "Ford", "Chevrolet",
+                "Hyundai", "Kia", "Mazda", "Land Rover", "Jeep",
+                "Lexus", "Volvo", "Porsche", "Mitsubishi", "Isuzu"
+            ].sort();
+
+            const defaultYears = Array.from({ length: 26 }, (_, i) => (2000 + i).toString()).reverse(); // 2000-2025
+
+            // 3. Set State: Use Data if available, otherwise use Defaults
+            setBrandList(dataBrands.length > 0 ? dataBrands.sort() : defaultBrands);
+            setYearList(dataYears.length > 0 ? dataYears.sort((a, b) => b - a) : defaultYears);
+        });
+        return () => unsubscribe();
+    }, []);
+
     const filteredParts = parts.filter(item => {
-        return (filters.brand === 'all' || item.brand === filters.brand) &&
-            (filters.year === 'all' || item.year === filters.year);
+        const itemYear = item.year?.toString();
+        // Case insensitive comparison for brands just in case
+        const matchesBrand = filters.brand === 'all' || item.brand?.toLowerCase() === filters.brand.toLowerCase();
+        const matchesYear = filters.year === 'all' || itemYear === filters.year;
+
+        return matchesBrand && matchesYear;
     });
 
-    const handleFilterChange = (field, value) => {
-        setFilters(prev => ({ ...prev, [field]: value }));
-    };
-
-    // Main filter button action (though real-time filtering is better, user had a button)
-    // We'll just make the button trigger search or just let selects drive it. 
-    // User code: Selects updated values, Button called "filterParts()".
-    // I will make the button redundant or just refresh, but React updates automatically. 
-    // To match user UX, I will only apply filters when "Search Parts" is clicked?
-    // Nah, reactive is better. But if strict:
-    // "Search Parts" button can initiate the fetch.
-    // Let's stick to reactive for better UX, but keep the button for UI fidelity.
-
-    // Actually, let's make it state-based but triggered by button if needed. 
-    // Simpler: Just make the selects update a temporary state, and button "applies" it?
-    // Or just make it instant. Instant is expected in React. I will keep the button as a visual indicator or "Refresh".
-
-    const addToCart = (item) => {
-        setCart([...cart, item]);
-        alert(item.name + " added to cart!");
-    };
-
+    const addToCart = (item) => setCart([...cart, item]);
     const removeFromCart = (index) => {
         const newCart = [...cart];
         newCart.splice(index, 1);
         setCart(newCart);
     };
 
-    const checkout = (method) => {
+    const checkout = async (method, formData) => {
         const total = cart.reduce((sum, item) => sum + item.price, 0);
-        if (cart.length === 0) return alert("Cart is empty!");
-        alert("Initiating " + method + " transaction for KES " + total.toLocaleString() + "...");
-        // Payment gateway logic here
-    };
 
-    const addNewItem = (newItem) => {
-        const itemWithId = { ...newItem, id: parts.length + 1 };
-        setParts([...parts, itemWithId]);
-        alert("New part added successfully!");
+        try {
+            const orderData = {
+                items: cart,
+                total: total,
+                customer: { phone: formData.phone, address: formData.address },
+                date: new Date(),
+                status: "Paid"
+            };
+
+            if (formData.marketerCode) {
+                const q = query(collection(db, "marketers"), where("code", "==", formData.marketerCode));
+                const snap = await getDocs(q);
+
+                if (!snap.empty) {
+                    const marketerId = snap.docs[0].id;
+                    await addDoc(collection(db, "marketers", marketerId, "sales"), {
+                        ...orderData,
+                        marketerCode: formData.marketerCode,
+                        status: "New"
+                    });
+                    alert("Order placed successfully! Marketer tracked.");
+                } else {
+                    alert("Order placed, but Marketer Code was invalid.");
+                }
+            } else {
+                alert("Order placed successfully!");
+            }
+
+            setCart([]);
+            setIsCartOpen(false);
+
+        } catch (err) {
+            console.error(err);
+            alert("Error processing order: " + err.message);
+        }
     };
 
     return (
         <div className="store-bg">
             <nav>
-                <div className="logo">Auto<span>Spares</span></div>
+                <div className="logo">Evo<span>Parts</span></div>
                 <div className="nav-icons">
-                    <i className="fas fa-user-cog" onClick={() => setIsAdminOpen(true)} title="Admin Panel"></i>
-                    <i className="fas fa-shopping-cart" onClick={() => setIsCartOpen(true)}>
+                    <i className="fas fa-shopping-cart" onClick={() => navigate('/checkout', { state: { cart } })}>
                         <span className="cart-count">{cart.length}</span>
                     </i>
                 </div>
@@ -76,69 +119,65 @@ const StorePage = () => {
 
             <section className="hero">
                 <h1>Find The Right Parts</h1>
-                <p>Select your vehicle details below</p>
-
                 <div className="filter-container">
-                    <select id="brandSelect" onChange={(e) => handleFilterChange('brand', e.target.value)}>
+
+                    {/* UPDATED: Dynamic Brand Select */}
+                    <select id="brandSelect" onChange={(e) => setFilters(prev => ({ ...prev, brand: e.target.value }))}>
                         <option value="all">All Brands</option>
-                        <option value="BMW">BMW</option>
-                        <option value="Mercedes">Mercedes</option>
-                        <option value="Toyota">Toyota</option>
+                        {brandList.map(b => (
+                            <option key={b} value={b}>{b}</option>
+                        ))}
                     </select>
 
-                    <select id="yearSelect" onChange={(e) => handleFilterChange('year', e.target.value)}>
+                    {/* UPDATED: Dynamic Year Select */}
+                    <select id="yearSelect" onChange={(e) => setFilters(prev => ({ ...prev, year: e.target.value }))}>
                         <option value="all">All Years</option>
-                        <option value="2024">2024</option>
-                        <option value="2023">2023</option>
-                        <option value="2022">2022</option>
-                        <option value="2015">2015</option>
+                        {yearList.map(y => (
+                            <option key={y} value={y}>{y}</option>
+                        ))}
                     </select>
 
-                    <button className="filter-btn">Search Parts</button>
                 </div>
             </section>
 
             <div className="store-container">
-                <h2 className="section-title">Available Spare Parts ({filteredParts.length})</h2>
+                <h2 className="section-title">Available Spare Parts</h2>
                 <div className="grid">
-                    {filteredParts.length === 0 ? (
-                        <p>No parts found matching your criteria.</p>
-                    ) : (
-                        filteredParts.map(item => (
-                            <div className="card" key={item.id}>
+                    {filteredParts.length === 0 ? <p style={{ color: '#888' }}>No parts found matching filters.</p> : filteredParts.map(item => (
+                        <div className="card" key={item.id}>
+                            {item.image && item.image !== "" ? (
                                 <img
-                                    src={item.image || "https://via.placeholder.com/300x200?text=No+Image+Added"}
+                                    src={item.image}
                                     className="card-img"
                                     alt={item.name}
-                                    onError={(e) => { e.target.src = "https://via.placeholder.com/300x200?text=Image+Not+Found"; }}
+                                    onError={(e) => { e.target.src = "https://via.placeholder.com/300"; }}
                                 />
-                                <div className="card-body">
-                                    <div className="card-brand">{item.brand} | {item.year}</div>
-                                    <h3 className="card-title">{item.name}</h3>
-                                    <div className="card-price">KES {item.price.toLocaleString()}</div>
-                                    <button className="btn-add" onClick={() => addToCart(item)}>
-                                        <i className="fas fa-cart-plus"></i> Add to Cart
-                                    </button>
+                            ) : (
+                                <div className="card-img">
+                                    <i className="fas fa-camera" style={{ fontSize: '3rem', color: '#555' }}></i>
                                 </div>
+                            )}
+
+                            <div className="card-body">
+                                <div className="card-brand">{item.brand} | {item.year}</div>
+                                <h3 className="card-title">{item.name}</h3>
+
+                                <div className="card-price">
+                                    {item.currency || 'KES'} {Number(item.price).toLocaleString()}
+                                </div>
+
+                                <button className="btn-add" onClick={() => addToCart(item)}>
+                                    <i className="fas fa-cart-plus"></i> Add to Cart
+                                </button>
                             </div>
-                        ))
-                    )}
+                        </div>
+                    ))}
                 </div>
             </div>
 
-            <CartModal
-                isOpen={isCartOpen}
-                onClose={() => setIsCartOpen(false)}
-                cartItems={cart}
-                onRemove={removeFromCart}
-                onCheckout={checkout}
-            />
 
-            <AdminModal
-                isOpen={isAdminOpen}
-                onClose={() => setIsAdminOpen(false)}
-                onAddItem={addNewItem}
-            />
+
+            <Footer />
         </div>
     );
 };

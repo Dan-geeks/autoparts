@@ -2,7 +2,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&display=swap');
 
 :root {
-  --primary: #d32f2f; /* Sporty Red */
+  --primary: #d32f2f;
+  /* Sporty Red */
   --dark: #121212;
   --card-bg: #1e1e1e;
   --text-light: #f5f5f5;
@@ -19,7 +20,7 @@ body {
   min-height: 100vh;
 }
 
-*{
+* {
   box-sizing: border-box;
 }
 
@@ -27,13 +28,98 @@ body {
 ::-webkit-scrollbar {
   width: 8px;
 }
+
 ::-webkit-scrollbar-track {
-  background: #1a1a1a; 
+  background: #1a1a1a;
 }
+
 ::-webkit-scrollbar-thumb {
-  background: var(--primary); 
+  background: var(--primary);
   border-radius: 4px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  background: #b71c1c; 
+  background: #b71c1c;
+}
+
+/* --- FOOTER STYLES --- */
+.site-footer {
+  background-color: #0a0a0a;
+  color: #fff;
+  padding: 60px 0 20px;
+  border-top: 1px solid #333;
+  margin-top: auto;
+  /* Push to bottom in flex containers */
+}
+
+.footer-content {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.footer-section {
+  flex: 1;
+  min-width: 250px;
+  margin-bottom: 30px;
+}
+
+.footer-section h3 {
+  margin-top: 0;
+  font-size: 1.5rem;
+}
+
+.footer-section h3 span {
+  color: var(--primary);
+}
+
+.footer-section h4 {
+  color: var(--text-light);
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--primary);
+  display: inline-block;
+  padding-bottom: 5px;
+}
+
+.footer-section ul {
+  list-style: none;
+  padding: 0;
+}
+
+.footer-section ul li {
+  margin-bottom: 10px;
+}
+
+.footer-section ul li a {
+  color: var(--text-gray);
+  text-decoration: none;
+  transition: 0.3s;
+}
+
+.footer-section ul li a:hover {
+  color: var(--primary);
+  padding-left: 5px;
+}
+
+.footer-section p {
+  color: var(--text-gray);
+  line-height: 1.6;
+}
+
+.footer-section i {
+  color: var(--primary);
+  margin-right: 10px;
+  width: 20px;
+}
+
+.footer-bottom {
+  text-align: center;
+  border-top: 1px solid #222;
+  padding-top: 20px;
+  margin-top: 20px;
+  color: #555;
+  font-size: 0.9rem;
 }

@@ -1,4 +1,10 @@
 /* Navbar */
+.store-bg {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
 nav {
     background-color: #000;
     padding: 15px 5%;
@@ -98,6 +104,7 @@ button.filter-btn:hover {
 /* Products Grid */
 .store-container {
     padding: 40px 5%;
+    flex: 1;
 }
 
 .section-title {
