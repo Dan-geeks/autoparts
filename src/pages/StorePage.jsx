@@ -162,6 +162,21 @@ const StorePage = () => {
                                 <div className="card-brand">{item.brand} | {item.year}</div>
                                 <h3 className="card-title">{item.name}</h3>
 
+                                {item.condition && (
+                                    <div style={{
+                                        display: 'inline-block',
+                                        padding: '4px 12px',
+                                        borderRadius: '12px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 'bold',
+                                        marginBottom: '10px',
+                                        background: item.condition === 'New' ? '#2ecc71' : item.condition === 'Like New' ? '#3498db' : '#95a5a6',
+                                        color: '#fff'
+                                    }}>
+                                        {item.condition}
+                                    </div>
+                                )}
+
                                 <div className="card-price">
                                     {item.currency || 'KES'} {Number(item.price).toLocaleString()}
                                 </div>
