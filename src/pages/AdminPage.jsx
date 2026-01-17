@@ -12,15 +12,20 @@ import "../styles/Login.css";
 
 // 🔒 SECURITY: List your exact Admin emails here
 const ALLOWED_ADMINS = [
-  "collinskosgei32@gmail.com"
+  "collinskosgei32@gmail.com",
+  "admin@evoparts.com"
 ];
+
+// Admin credentials: admin@evoparts.com / Admin@500p
 
 const emptyPart = {
   name: "",
-  brand: "", 
+  brand: "",
   year: new Date().getFullYear().toString(),
+  compatibleYears: [], // NEW: Array of compatible years
   price: 0,
   currency: "USD",
+  condition: "New",
   image: "",
 };
 
@@ -38,10 +43,12 @@ const AdminPage = () => {
   const [parts, setParts] = useState([]);
   const [marketers, setMarketers] = useState([]);
   const [requests, setRequests] = useState([]);
+  const [carMakes, setCarMakes] = useState([]);
 
   // Forms & Editing State
   const [formData, setFormData] = useState(emptyPart);
-  const [marketerForm, setMarketerForm] = useState({ email: "", password: "", name: "" });
+  const [marketerForm, setMarketerForm] = useState({ email: "", password: "", name: "", commission: 10 });
+  const [carMakeForm, setCarMakeForm] = useState({ brand: "", year: new Date().getFullYear().toString(), model: "" });
   const [editingId, setEditingId] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [saveStatus, setSaveStatus] = useState("idle");
@@ -85,10 +92,15 @@ const AdminPage = () => {
       setRequests(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
+    const unsubCarMakes = onSnapshot(collection(db, "carMakes"), (snap) => {
+      setCarMakes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
     return () => {
       unsubParts();
       unsubMarketers();
       unsubRequests();
+      unsubCarMakes();
     };
   }, [user]);
 
@@ -112,11 +124,12 @@ const AdminPage = () => {
         email: marketerForm.email,
         password: marketerForm.password,
         code: uniqueCode,
+        commission: Number(marketerForm.commission) || 10,
         createdAt: new Date(),
         salesCount: 0
       });
       alert(`Marketer Created! Code: ${uniqueCode}`);
-      setMarketerForm({ email: "", password: "", name: "" });
+      setMarketerForm({ email: "", password: "", name: "", commission: 10 });
     } catch (err) {
       alert(err.message);
     }
@@ -150,6 +163,32 @@ const AdminPage = () => {
         await deleteDoc(doc(db, "spareParts", id));
     } catch (err) {
         alert("Error deleting product: " + err.message);
+    }
+  };
+
+  const handleAddCarMake = async (e) => {
+    e.preventDefault();
+    try {
+      await addDoc(collection(db, "carMakes"), {
+        brand: carMakeForm.brand,
+        year: carMakeForm.year,
+        model: carMakeForm.model || "",
+        createdAt: new Date(),
+        createdBy: user.email
+      });
+      alert("Car make added successfully!");
+      setCarMakeForm({ brand: "", year: new Date().getFullYear().toString(), model: "" });
+    } catch (err) {
+      alert("Error adding car make: " + err.message);
+    }
+  };
+
+  const handleDeleteCarMake = async (id) => {
+    if (!window.confirm("Delete this car make?")) return;
+    try {
+      await deleteDoc(doc(db, "carMakes", id));
+    } catch (err) {
+      alert("Error: " + err.message);
     }
   };
 
@@ -233,6 +272,7 @@ const AdminPage = () => {
         <div className="admin-tabs">
           <button className={activeTab === 'inventory' ? 'active' : ''} onClick={() => setActiveTab('inventory')}>Inventory</button>
           <button className={activeTab === 'marketers' ? 'active' : ''} onClick={() => setActiveTab('marketers')}>Marketers</button>
+          <button className={activeTab === 'carMakes' ? 'active' : ''} onClick={() => setActiveTab('carMakes')}>Car Makes</button>
           <button className={activeTab === 'requests' ? 'active' : ''} onClick={() => setActiveTab('requests')}>Requests</button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
@@ -260,15 +300,35 @@ const AdminPage = () => {
               </div>
 
               <div className="form-group">
-                <label>Model Year</label>
+                <label>Model Year *</label>
                 <input
                   className="admin-input"
                   type="number"
-                  placeholder="e.g. 2024"
+                  placeholder="e.g. 2024 (primary year)"
                   value={formData.year}
                   onChange={e => setFormData({ ...formData, year: e.target.value })}
                   required
                 />
+              </div>
+
+              <div className="form-group">
+                <label>Compatible Years (Optional)</label>
+                <input
+                  className="admin-input"
+                  type="text"
+                  placeholder="e.g. 2013, 2014, 2015 (comma-separated)"
+                  value={formData.compatibleYears?.join(', ') || ''}
+                  onChange={e => {
+                    const yearsArray = e.target.value
+                      .split(',')
+                      .map(y => y.trim())
+                      .filter(y => y !== '');
+                    setFormData({ ...formData, compatibleYears: yearsArray });
+                  }}
+                />
+                <small style={{ color: '#888', fontSize: '0.75rem' }}>
+                  Add multiple compatible years separated by commas
+                </small>
               </div>
 
               <div className="form-group">
@@ -280,6 +340,15 @@ const AdminPage = () => {
                     <option value="GBP">GBP</option>
                   </select>
                 </div>
+              </div>
+
+              <div className="form-group">
+                <label>Condition</label>
+                <select className="admin-input" value={formData.condition || 'New'} onChange={e => setFormData({ ...formData, condition: e.target.value })} required>
+                  <option value="New">New</option>
+                  <option value="Like New">Like New</option>
+                  <option value="Used">Used</option>
+                </select>
               </div>
 
               <div className="form-group"><label>Product Image</label><input type="file" onChange={handleImageUpload} className="file-input" /></div>
@@ -300,7 +369,26 @@ const AdminPage = () => {
                   <img src={p.image || "https://via.placeholder.com/50"} alt="" />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 'bold' }}>{p.name}</div>
-                    <div style={{ fontSize: '0.8rem', color: '#888' }}>{p.brand} | {p.year}</div>
+                    <div style={{ fontSize: '0.8rem', color: '#888' }}>
+                      {p.brand} | {p.year}
+                      {p.compatibleYears && p.compatibleYears.length > 0 && (
+                        <span style={{ color: '#3498db', marginLeft: '5px' }}>
+                          (+{p.compatibleYears.join(', ')})
+                        </span>
+                      )}
+                      {p.condition && (
+                        <span style={{
+                          marginLeft: '8px',
+                          padding: '2px 8px',
+                          borderRadius: '8px',
+                          fontSize: '0.7rem',
+                          background: p.condition === 'New' ? '#2ecc71' : p.condition === 'Like New' ? '#3498db' : '#95a5a6',
+                          color: '#fff'
+                        }}>
+                          {p.condition}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div style={{ display: 'flex' }}>
                     <button onClick={() => { setEditingId(p.id); setFormData(p); }} className="icon-btn edit">✎</button>
@@ -324,6 +412,23 @@ const AdminPage = () => {
               <input className="admin-input" placeholder="Name" value={marketerForm.name} onChange={e => setMarketerForm({ ...marketerForm, name: e.target.value })} required style={{ marginBottom: '10px' }} />
               <input className="admin-input" placeholder="Email" value={marketerForm.email} onChange={e => setMarketerForm({ ...marketerForm, email: e.target.value })} required style={{ marginBottom: '10px' }} />
               <input className="admin-input" placeholder="Password" value={marketerForm.password} onChange={e => setMarketerForm({ ...marketerForm, password: e.target.value })} required style={{ marginBottom: '10px' }} />
+
+              <div className="form-group" style={{ marginBottom: '10px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', color: '#ccc', fontSize: '0.9rem' }}>Commission Rate (%)</label>
+                <input
+                  className="admin-input"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  placeholder="e.g. 10"
+                  value={marketerForm.commission}
+                  onChange={e => setMarketerForm({ ...marketerForm, commission: e.target.value })}
+                  required
+                />
+                <small style={{ color: '#888', fontSize: '0.75rem' }}>Marketer will earn this % on each sale</small>
+              </div>
+
               <button type="submit" className="admin-btn">Generate Code</button>
             </form>
           </div>
@@ -335,9 +440,83 @@ const AdminPage = () => {
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 'bold' }}>{m.name}</div>
                     <div style={{ fontSize: '0.8rem', color: 'var(--primary)' }}>Code: {m.code}</div>
+                    <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '4px' }}>
+                      Email: <span style={{ color: '#3498db' }}>{m.email}</span>
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '2px' }}>
+                      Password: <span style={{ color: '#e74c3c', fontFamily: 'monospace' }}>{m.password}</span>
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '2px' }}>
+                      Commission: <span style={{ color: '#2ecc71', fontWeight: 'bold' }}>{m.commission || 0}%</span>
+                    </div>
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'carMakes' && (
+        <div className="admin-grid">
+          <div className="admin-panel form-panel">
+            <h3>Add Car Make/Model</h3>
+            <form onSubmit={handleAddCarMake}>
+              <div className="form-group">
+                <label>Brand *</label>
+                <input
+                  className="admin-input"
+                  placeholder="e.g. BMW, Toyota, Mercedes"
+                  value={carMakeForm.brand}
+                  onChange={e => setCarMakeForm({ ...carMakeForm, brand: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Year *</label>
+                <input
+                  className="admin-input"
+                  type="number"
+                  placeholder="e.g. 2024"
+                  value={carMakeForm.year}
+                  onChange={e => setCarMakeForm({ ...carMakeForm, year: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Model (Optional)</label>
+                <input
+                  className="admin-input"
+                  placeholder="e.g. X5, Corolla, C-Class"
+                  value={carMakeForm.model}
+                  onChange={e => setCarMakeForm({ ...carMakeForm, model: e.target.value })}
+                />
+              </div>
+
+              <button type="submit" className="admin-btn">Add Car Make</button>
+            </form>
+          </div>
+
+          <div className="admin-panel list-panel">
+            <h3>Car Makes Database</h3>
+            <div className="inventory-list">
+              {carMakes.length === 0 ? (
+                <p style={{ color: '#888' }}>No car makes added yet</p>
+              ) : (
+                carMakes.map(make => (
+                  <div key={make.id} className="inventory-item">
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 'bold' }}>{make.brand} {make.model && `- ${make.model}`}</div>
+                      <div style={{ fontSize: '0.8rem', color: '#888' }}>Year: {make.year}</div>
+                    </div>
+                    <button onClick={() => handleDeleteCarMake(make.id)} className="icon-btn delete">
+                      <i className="fas fa-trash"></i>
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

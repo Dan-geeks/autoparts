@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Footer from '../components/Footer';
 import { db } from '../firebaseConfig';
-import { collection, addDoc, getDocs, query, where, onSnapshot, doc } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where } from "firebase/firestore";
+import { createPayPalOrder, capturePayPalPayment } from '../config/paypalConfig';
+import PayPalCardPayment from '../components/PayPalCardPayment';
 import '../styles/Checkout.css';
 
 const CheckoutPage = () => {
@@ -23,10 +25,12 @@ const CheckoutPage = () => {
         marketerCode: ''
     });
 
-    // States: 'form' | 'processing' | 'success'
+
+    // States: 'form' | 'payment' | 'processing' | 'success'
     const [viewState, setViewState] = useState('form');
     const [orderId, setOrderId] = useState(null);
     const [trackingCollection, setTrackingCollection] = useState(null); // 'orders' or 'marketers/{id}/sales'
+    const [payPalOrderId, setPayPalOrderId] = useState(null);
 
     const total = cart.reduce((sum, item) => sum + Number(item.price), 0);
     const currency = cart.length > 0 ? (cart[0].currency || 'KES') : 'KES';
@@ -37,21 +41,6 @@ const CheckoutPage = () => {
         }
     }, [cart, navigate, viewState]);
 
-    // REAL-TIME LISTENER FOR APPROVAL
-    useEffect(() => {
-        if (viewState === 'processing' && orderId && trackingCollection) {
-            const unsub = onSnapshot(doc(db, trackingCollection, orderId), (docSnap) => {
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    if (data.status === 'Approved' || data.status === 'Paid') {
-                        setViewState('success');
-                        localStorage.removeItem('cart');
-                    }
-                }
-            });
-            return () => unsub();
-        }
-    }, [viewState, orderId, trackingCollection]);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -60,8 +49,12 @@ const CheckoutPage = () => {
 
     const handlePlaceOrder = async (e) => {
         e.preventDefault();
+        // Move to payment view
+        setViewState('payment');
+    };
 
-        // 1. Prepare Data
+    const handlePaymentSuccess = async (paymentData) => {
+        // 1. Prepare Order Data
         const orderData = {
             items: cart,
             total: total,
@@ -71,8 +64,10 @@ const CheckoutPage = () => {
                 phone: formData.phone,
                 address: formData.address
             },
-            paymentMethod: "PayPal",
-            status: "Pending Payment", // This triggers the wait
+            paymentMethod: "PayPal Card Payment",
+            paymentId: paymentData.paymentId,
+            paypalOrderId: paymentData.orderId,
+            status: "Paid", // Payment already captured
             date: new Date()
         };
 
@@ -95,60 +90,38 @@ const CheckoutPage = () => {
                         marketerCode: formData.marketerCode.toUpperCase()
                     });
 
-                    // Notify Admin
-                    await addDoc(collection(db, "adminRequests"), {
-                        type: "Payment Approval",
-                        description: `Approve payment of ${currency} ${total} (Marketer: ${formData.marketerCode})`,
-                        orderId: newOrderRef.id,
-                        collectionPath: collectionPath, // Admin needs to know where to update
-                        amount: total,
-                        status: "Pending",
-                        date: new Date()
-                    });
-
                 } else {
-                    alert("Invalid Marketer Code. Processing as standard order.");
                     // Fallback to standard order
                     collectionPath = "orders";
                     newOrderRef = await addDoc(collection(db, "orders"), orderData);
-
-                    // Notify Admin
-                    await addDoc(collection(db, "adminRequests"), {
-                        type: "Payment Approval",
-                        description: `Approve payment of ${currency} ${total} (Direct Sale)`,
-                        orderId: newOrderRef.id,
-                        collectionPath: collectionPath,
-                        amount: total,
-                        status: "Pending",
-                        date: new Date()
-                    });
                 }
             } else {
                 // Direct Order (No Code)
                 collectionPath = "orders";
                 newOrderRef = await addDoc(collection(db, "orders"), orderData);
-
-                // Notify Admin
-                await addDoc(collection(db, "adminRequests"), {
-                    type: "Payment Approval",
-                    description: `Approve payment of ${currency} ${total} (Direct Sale)`,
-                    orderId: newOrderRef.id,
-                    collectionPath: collectionPath,
-                    amount: total,
-                    status: "Pending",
-                    date: new Date()
-                });
             }
 
-            // 3. Transition UI
+            // 3. Transition to Success
             setOrderId(newOrderRef.id);
             setTrackingCollection(collectionPath);
-            setViewState('processing');
+            setViewState('success');
+            localStorage.removeItem('cart');
+
+            // Redirect to Thank You page after 2 seconds
+            setTimeout(() => {
+                navigate('/thank-you');
+            }, 2000);
 
         } catch (err) {
             console.error(err);
-            alert("Error placing order: " + err.message);
+            alert("Error saving order: " + err.message);
         }
+    };
+
+    const handlePaymentError = (error) => {
+        console.error('Payment error:', error);
+        alert('Payment failed: ' + error.message);
+        setViewState('form');
     };
 
     return (
@@ -215,25 +188,73 @@ const CheckoutPage = () => {
                             </div>
 
                             <div className="checkout-section">
-                                <h2>Payment Instructions</h2>
+                                <h2>Ready to Pay</h2>
                                 <p style={{ color: '#ccc', marginBottom: '15px' }}>
-                                    Send total via PayPal to start processing.
+                                    Click below to proceed with secure card payment via PayPal.
                                 </p>
 
-                                <div className="paypal-box">
-                                    <i className="fab fa-paypal" style={{ fontSize: '2rem', color: '#003087' }}></i>
-                                    <span className="paypal-email">collinskosgei32@gmail.com</span>
-                                </div>
-
                                 <button type="submit" className="place-order-btn">
-                                    Confirm Order Sent
+                                    Proceed to Payment
                                 </button>
                             </div>
                         </div>
                     </form>
                 )}
 
-                {/* VIEW 2: PROCESSING ANIMATION */}
+                {/* VIEW 2: PAYMENT */}
+                {viewState === 'payment' && (
+                    <div className="checkout-container" style={{ maxWidth: '600px', margin: '0 auto' }}>
+                        <div className="checkout-section">
+                            <button
+                                onClick={() => setViewState('form')}
+                                style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: '#0070ba',
+                                    cursor: 'pointer',
+                                    marginBottom: '20px',
+                                    fontSize: '14px'
+                                }}
+                            >
+                                ← Back to Order Details
+                            </button>
+
+                            <h2>Secure Payment</h2>
+                            <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#16213e', borderRadius: '8px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                                    <span style={{ color: '#ccc' }}>Order Total:</span>
+                                    <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '20px' }}>
+                                        {currency} {total.toLocaleString()}
+                                    </span>
+                                </div>
+                                <div style={{ fontSize: '12px', color: '#888' }}>
+                                    Customer: {formData.fullName}
+                                </div>
+                            </div>
+
+                            <PayPalCardPayment
+                                amount={total}
+                                currency={currency}
+                                customerData={formData}
+                                onSuccess={async (paymentData) => {
+                                    setViewState('processing');
+                                    await handlePaymentSuccess({
+                                        paymentId: paymentData.paymentId,
+                                        orderId: paymentData.orderId,
+                                        status: paymentData.status,
+                                        captureDetails: paymentData.captureResult
+                                    });
+                                }}
+                                onError={(error) => {
+                                    console.error('Payment error:', error);
+                                    alert('Payment failed: ' + error.message + '\n\nPlease check your card details and try again.');
+                                }}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {/* VIEW 3: PROCESSING ANIMATION */}
                 {viewState === 'processing' && (
                     <div className="status-container">
                         <div className="spinner-box"></div>
@@ -245,15 +266,12 @@ const CheckoutPage = () => {
                     </div>
                 )}
 
-                {/* VIEW 3: SUCCESS ANIMATION */}
+                {/* VIEW 4: SUCCESS ANIMATION */}
                 {viewState === 'success' && (
                     <div className="status-container">
                         <i className="fas fa-check-circle success-icon"></i>
                         <h2 className="success-title">Payment Successful!</h2>
-                        <p className="sub-text">Your order has been approved and is being prepared for shipping.</p>
-                        <button className="place-order-btn" onClick={() => navigate('/store')} style={{ width: 'auto', padding: '10px 40px' }}>
-                            Continue Shopping
-                        </button>
+                        <p className="sub-text">Redirecting to confirmation page...</p>
                     </div>
                 )}
 

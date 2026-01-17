@@ -19,10 +19,20 @@ const Footer = () => {
                     </ul>
                 </div>
                 <div className="footer-section">
-                    <h4>Contact Info</h4>
-                    <p><i className="fas fa-map-marker-alt"></i> 1234 Auto Drive, Detroit, MI 48202</p>
-                    <p><i className="fas fa-phone"></i> +1 (555) 123-4567</p>
-                    <p><i className="fas fa-envelope"></i> support@evoparts.com</p>
+                    <h4>Contact Us</h4>
+                    <p><i className="fas fa-map-marker-alt"></i> Europe</p>
+                    <p>
+                        <i className="fas fa-envelope"></i>
+                        <a href="mailto:evoautopartslimited@gmail.com" style={{ color: '#ccc', textDecoration: 'none', marginLeft: '5px' }}>
+                            evoautopartslimited@gmail.com
+                        </a>
+                    </p>
+                    <p>
+                        <i className="fab fa-whatsapp"></i>
+                        <a href="https://wa.me/1234567890" target="_blank" rel="noopener noreferrer" style={{ color: '#25D366', textDecoration: 'none', marginLeft: '5px' }}>
+                            WhatsApp Chat
+                        </a>
+                    </p>
                 </div>
             </div>
             <div className="footer-bottom">

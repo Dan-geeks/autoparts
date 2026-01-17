@@ -21,9 +21,11 @@ const MarketerPage = () => {
     // Dashboard State
     const [mySales, setMySales] = useState([]);
     const [myProducts, setMyProducts] = useState([]);
+    const [carMakes, setCarMakes] = useState([]);
 
     // Upload State - Default values cleared for input
     const [productForm, setProductForm] = useState({ name: "", price: "", currency: "USD", brand: "", year: "", image: "" });
+    const [carMakeForm, setCarMakeForm] = useState({ brand: "", year: new Date().getFullYear().toString(), model: "" });
     const [uploading, setUploading] = useState(false);
     const [saveStatus, setSaveStatus] = useState("idle");
 
@@ -59,9 +61,13 @@ const MarketerPage = () => {
         const unsubProducts = onSnapshot(productsRef, (snap) => {
             setMyProducts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         });
+        const unsubCarMakes = onSnapshot(collection(db, "carMakes"), (snap) => {
+            setCarMakes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
         return () => {
             unsubSales();
             unsubProducts();
+            unsubCarMakes();
         };
     }, [marketer]);
 
@@ -151,6 +157,23 @@ const MarketerPage = () => {
         });
     };
 
+    const handleAddCarMake = async (e) => {
+        e.preventDefault();
+        try {
+            await addDoc(collection(db, "carMakes"), {
+                brand: carMakeForm.brand,
+                year: carMakeForm.year,
+                model: carMakeForm.model || "",
+                createdAt: new Date(),
+                createdBy: marketer.email
+            });
+            alert("Car make added successfully!");
+            setCarMakeForm({ brand: "", year: new Date().getFullYear().toString(), model: "" });
+        } catch (err) {
+            alert("Error: " + err.message);
+        }
+    };
+
     if (!marketer) {
         return (
             <div className="login-page-bg">
@@ -174,6 +197,7 @@ const MarketerPage = () => {
                 <div className="admin-tabs">
                     <button className={activeTab === 'dashboard' ? 'active' : ''} onClick={() => setActiveTab('dashboard')}>Sales & Products</button>
                     <button className={activeTab === 'upload' ? 'active' : ''} onClick={() => setActiveTab('upload')}>Upload Product</button>
+                    <button className={activeTab === 'carMakes' ? 'active' : ''} onClick={() => setActiveTab('carMakes')}>Add Car Make</button>
                 </div>
                 <button className="logout-btn" onClick={() => setMarketer(null)}>Logout</button>
             </div>
@@ -181,13 +205,52 @@ const MarketerPage = () => {
             {activeTab === 'dashboard' && (
                 <div className="admin-grid">
                     <div className="admin-panel">
-                        <h3>My Sales (Code: {marketer.code})</h3>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                            <h3>My Sales (Code: {marketer.code})</h3>
+                            <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontSize: '0.8rem', color: '#888' }}>Commission Rate</div>
+                                <div style={{ fontSize: '1.2rem', color: '#2ecc71', fontWeight: 'bold' }}>{marketer.commission || 0}%</div>
+                            </div>
+                        </div>
+
+                        {/* Commission Summary */}
+                        {mySales.length > 0 && (
+                            <div style={{
+                                background: 'linear-gradient(135deg, #2ecc71 0%, #27ae60 100%)',
+                                padding: '20px',
+                                borderRadius: '8px',
+                                marginBottom: '20px',
+                                color: '#fff'
+                            }}>
+                                <div style={{ fontSize: '0.9rem', marginBottom: '5px' }}>Total Earnings</div>
+                                <div style={{ fontSize: '1.8rem', fontWeight: 'bold' }}>
+                                    USD {mySales.reduce((total, sale) => {
+                                        const saleAmount = Number(sale.total) || 0;
+                                        const commission = (saleAmount * (marketer.commission || 0)) / 100;
+                                        return total + commission;
+                                    }, 0).toFixed(2)}
+                                </div>
+                                <div style={{ fontSize: '0.75rem', marginTop: '5px', opacity: 0.9 }}>
+                                    From {mySales.length} sale{mySales.length !== 1 ? 's' : ''}
+                                </div>
+                            </div>
+                        )}
+
                         {mySales.length === 0 ? <p>No sales recorded yet.</p> : (
                             <div className="inventory-list">
-                                {mySales.map(sale => (
+                                {mySales.map(sale => {
+                                    const saleAmount = Number(sale.total) || 0;
+                                    const commissionAmount = (saleAmount * (marketer.commission || 0)) / 100;
+
+                                    return (
                                     <div key={sale.id} className="inventory-item" style={{ display: 'block' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <strong>KES {sale.total.toLocaleString()}</strong>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <div>
+                                                <strong>USD {saleAmount.toLocaleString()}</strong>
+                                                <div style={{ fontSize: '0.75rem', color: '#2ecc71', marginTop: '2px' }}>
+                                                    Your Commission: USD {commissionAmount.toFixed(2)}
+                                                </div>
+                                            </div>
 
                                             {/* Status Badge */}
                                             <span style={{
@@ -215,7 +278,8 @@ const MarketerPage = () => {
                                             </button>
                                         )}
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
@@ -276,6 +340,64 @@ const MarketerPage = () => {
                             {saveStatus === 'saving' ? 'Uploading...' : saveStatus === 'success' ? '✔ Upload Successful' : 'Upload to Store'}
                         </button>
                     </form>
+                </div>
+            )}
+
+            {activeTab === 'carMakes' && (
+                <div className="admin-grid">
+                    <div className="admin-panel form-panel" style={{ maxWidth: '600px', margin: '0 auto' }}>
+                        <h3>Add New Car Make/Model</h3>
+                        <p style={{ color: '#888', fontSize: '0.85rem', marginBottom: '20px' }}>
+                            Add car brands and years to help customers find the right parts
+                        </p>
+                        <form onSubmit={handleAddCarMake}>
+                            <input
+                                className="admin-input"
+                                placeholder="Brand (e.g. BMW, Toyota)"
+                                value={carMakeForm.brand}
+                                onChange={e => setCarMakeForm({ ...carMakeForm, brand: e.target.value })}
+                                required
+                                style={{ marginBottom: '10px' }}
+                            />
+
+                            <input
+                                className="admin-input"
+                                type="number"
+                                placeholder="Year (e.g. 2024)"
+                                value={carMakeForm.year}
+                                onChange={e => setCarMakeForm({ ...carMakeForm, year: e.target.value })}
+                                required
+                                style={{ marginBottom: '10px' }}
+                            />
+
+                            <input
+                                className="admin-input"
+                                placeholder="Model (Optional, e.g. X5, Corolla)"
+                                value={carMakeForm.model}
+                                onChange={e => setCarMakeForm({ ...carMakeForm, model: e.target.value })}
+                                style={{ marginBottom: '10px' }}
+                            />
+
+                            <button className="admin-btn">Add to Database</button>
+                        </form>
+
+                        {/* Show recently added makes */}
+                        {carMakes.length > 0 && (
+                            <div style={{ marginTop: '30px' }}>
+                                <h4 style={{ marginBottom: '10px', color: '#fff' }}>Recently Added</h4>
+                                <div className="inventory-list">
+                                    {carMakes.slice(0, 10).map(make => (
+                                        <div key={make.id} className="inventory-item">
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ fontWeight: 'bold' }}>{make.brand} {make.model && `- ${make.model}`}</div>
+                                                <div style={{ fontSize: '0.8rem', color: '#888' }}>Year: {make.year}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
             <Footer />
