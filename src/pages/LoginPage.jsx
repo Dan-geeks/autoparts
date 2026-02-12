@@ -14,6 +14,7 @@ const LoginPage = () => {
     const [password, setPassword] = useState('');
     const [fullName, setFullName] = useState('');
     const [error, setError] = useState('');
+    const [isCheckingUser, setIsCheckingUser] = useState(false);
     const navigate = useNavigate();
 
     // Reset errors when switching tabs
@@ -26,12 +27,28 @@ const LoginPage = () => {
         e.preventDefault();
         console.log("Attempting Email Login...");
         setError('');
+        setIsCheckingUser(false);
         try {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             console.log("Login Success:", userCredential.user);
+            
+            // Check if user is disabled
+            setIsCheckingUser(true);
+            const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+            
+            if (userDoc.exists() && userDoc.data().disabled) {
+                // Show loading animation for disabled users
+                await auth.signOut();
+                setIsCheckingUser(false);
+                setError("Your account has been disabled. Please contact support for assistance.");
+                return;
+            }
+            
+            setIsCheckingUser(false);
             navigate('/store');
         } catch (err) {
             console.error("Login Error:", err);
+            setIsCheckingUser(false);
             setError("Login failed: " + err.message);
         }
     };
@@ -43,6 +60,15 @@ const LoginPage = () => {
         try {
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             console.log("Signup Success:", userCredential.user);
+            
+            // Create user document in Firestore
+            await setDoc(doc(db, 'users', userCredential.user.uid), {
+                email: userCredential.user.email,
+                fullName: fullName,
+                disabled: false,
+                createdAt: new Date()
+            });
+            
             navigate('/store');
         } catch (err) {
             console.error("Signup Error:", err);

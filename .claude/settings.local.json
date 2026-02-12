@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(npm install:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(firebase deploy:*)",
+      "Bash(npm run dev:*)"
     ]
   }
 }

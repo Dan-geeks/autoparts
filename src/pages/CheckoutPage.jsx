@@ -17,6 +17,11 @@ const CheckoutPage = () => {
         return navCart ? navCart : (storedCart ? JSON.parse(storedCart) : []);
     });
 
+    // Sync cart to localStorage whenever it changes
+    useEffect(() => {
+        localStorage.setItem('cart', JSON.stringify(cart));
+    }, [cart]);
+
     const [formData, setFormData] = useState({
         fullName: '',
         email: '',
@@ -25,6 +30,10 @@ const CheckoutPage = () => {
         marketerCode: ''
     });
 
+    const [discountCode, setDiscountCode] = useState('');
+    const [appliedDiscount, setAppliedDiscount] = useState(null);
+    const [discountError, setDiscountError] = useState('');
+    const [checkingDiscount, setCheckingDiscount] = useState(false);
 
     // States: 'form' | 'payment' | 'processing' | 'success'
     const [viewState, setViewState] = useState('form');
@@ -32,7 +41,9 @@ const CheckoutPage = () => {
     const [trackingCollection, setTrackingCollection] = useState(null); // 'orders' or 'marketers/{id}/sales'
     const [payPalOrderId, setPayPalOrderId] = useState(null);
 
-    const total = cart.reduce((sum, item) => sum + Number(item.price), 0);
+    const subtotal = cart.reduce((sum, item) => sum + Number(item.price), 0);
+    const discountAmount = appliedDiscount ? appliedDiscount.amount : 0;
+    const total = subtotal - discountAmount;
     const currency = cart.length > 0 ? (cart[0].currency || 'KES') : 'KES';
 
     useEffect(() => {
@@ -47,6 +58,61 @@ const CheckoutPage = () => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    // --- DISCOUNT CODE VALIDATION ---
+    const applyDiscountCode = async () => {
+        if (!discountCode.trim()) return;
+
+        setCheckingDiscount(true);
+        setDiscountError('');
+        setAppliedDiscount(null);
+
+        try {
+            // Search for product with this discount code
+            const q = query(collection(db, "spareParts"), where("discount.code", "==", discountCode.toUpperCase()));
+            const snapshot = await getDocs(q);
+
+            if (snapshot.empty) {
+                setDiscountError('Invalid discount code');
+                setCheckingDiscount(false);
+                return;
+            }
+
+            const productWithDiscount = snapshot.docs[0].data();
+            const discount = productWithDiscount.discount;
+
+            // Calculate discount amount
+            let discountAmt = 0;
+            if (discount.type === 'percentage') {
+                discountAmt = (subtotal * discount.value) / 100;
+            } else {
+                discountAmt = discount.value;
+            }
+
+            // Ensure discount doesn't exceed total
+            discountAmt = Math.min(discountAmt, subtotal);
+
+            setAppliedDiscount({
+                code: discount.code,
+                type: discount.type,
+                value: discount.value,
+                amount: discountAmt,
+                productName: productWithDiscount.name
+            });
+
+        } catch (err) {
+            console.error('Error validating discount:', err);
+            setDiscountError('Error validating code. Try again.');
+        } finally {
+            setCheckingDiscount(false);
+        }
+    };
+
+    const removeDiscount = () => {
+        setAppliedDiscount(null);
+        setDiscountCode('');
+        setDiscountError('');
+    };
+
     const handlePlaceOrder = async (e) => {
         e.preventDefault();
         // Move to payment view
@@ -57,6 +123,13 @@ const CheckoutPage = () => {
         // 1. Prepare Order Data
         const orderData = {
             items: cart,
+            subtotal: subtotal,
+            discount: appliedDiscount ? {
+                code: appliedDiscount.code,
+                type: appliedDiscount.type,
+                value: appliedDiscount.value,
+                amount: appliedDiscount.amount
+            } : null,
             total: total,
             customer: {
                 name: formData.fullName,
@@ -124,6 +197,12 @@ const CheckoutPage = () => {
         setViewState('form');
     };
 
+    const removeFromCart = (index) => {
+        const newCart = [...cart];
+        newCart.splice(index, 1);
+        setCart(newCart);
+    };
+
     return (
         <div className="store-bg">
             <nav style={{ position: 'relative' }}>
@@ -148,7 +227,7 @@ const CheckoutPage = () => {
                                 </div>
                                 <div className="form-group">
                                     <label>Phone Number</label>
-                                    <input type="tel" name="phone" className="checkout-input" required value={formData.phone} onChange={handleInputChange} placeholder="+254..." />
+                                    <input type="tel" name="phone" className="checkout-input" required value={formData.phone} onChange={handleInputChange} placeholder="+44..." />
                                 </div>
                                 <div className="form-group">
                                     <label>Delivery Address</label>
@@ -163,6 +242,100 @@ const CheckoutPage = () => {
                                     <input name="marketerCode" className="checkout-input" value={formData.marketerCode} onChange={handleInputChange} placeholder="Enter code here" />
                                 </div>
                             </div>
+
+                            <div className="checkout-section">
+                                <h2>Discount Code</h2>
+                                <div className="form-group">
+                                    <label>Have a discount code?</label>
+                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                        <input
+                                            type="text"
+                                            className="checkout-input"
+                                            placeholder="Enter discount code"
+                                            value={discountCode}
+                                            onChange={(e) => {
+                                                setDiscountCode(e.target.value.toUpperCase());
+                                                setDiscountError('');
+                                            }}
+                                            disabled={appliedDiscount !== null}
+                                            style={{ flex: 1, fontFamily: 'monospace', letterSpacing: '1px' }}
+                                        />
+                                        {!appliedDiscount ? (
+                                            <button
+                                                type="button"
+                                                onClick={applyDiscountCode}
+                                                disabled={!discountCode.trim() || checkingDiscount}
+                                                style={{
+                                                    padding: '12px 20px',
+                                                    background: discountCode.trim() ? '#2ecc71' : '#555',
+                                                    border: 'none',
+                                                    borderRadius: '5px',
+                                                    color: '#fff',
+                                                    fontWeight: 'bold',
+                                                    cursor: discountCode.trim() ? 'pointer' : 'not-allowed',
+                                                    transition: 'all 0.3s'
+                                                }}
+                                            >
+                                                {checkingDiscount ? 'Checking...' : 'Apply'}
+                                            </button>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={removeDiscount}
+                                                style={{
+                                                    padding: '12px 20px',
+                                                    background: '#e74c3c',
+                                                    border: 'none',
+                                                    borderRadius: '5px',
+                                                    color: '#fff',
+                                                    fontWeight: 'bold',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.3s'
+                                                }}
+                                            >
+                                                Remove
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {discountError && (
+                                        <div style={{ color: '#e74c3c', marginTop: '10px', fontSize: '0.9rem' }}>
+                                            <i className="fas fa-exclamation-circle" style={{ marginRight: '8px' }}></i>
+                                            {discountError}
+                                        </div>
+                                    )}
+
+                                    {appliedDiscount && (
+                                        <div style={{
+                                            marginTop: '15px',
+                                            padding: '15px',
+                                            background: 'rgba(46, 204, 113, 0.1)',
+                                            border: '1px solid #2ecc71',
+                                            borderRadius: '8px'
+                                        }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <div>
+                                                    <div style={{ color: '#2ecc71', fontWeight: 'bold', marginBottom: '5px' }}>
+                                                        <i className="fas fa-check-circle" style={{ marginRight: '8px' }}></i>
+                                                        Discount Applied!
+                                                    </div>
+                                                    <div style={{ color: '#ccc', fontSize: '0.85rem' }}>
+                                                        Code: <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{appliedDiscount.code}</span>
+                                                    </div>
+                                                </div>
+                                                <div style={{ textAlign: 'right' }}>
+                                                    <div style={{ color: '#2ecc71', fontSize: '1.2rem', fontWeight: 'bold' }}>
+                                                        -{currency} {appliedDiscount.amount.toLocaleString()}
+                                                    </div>
+                                                    <div style={{ color: '#888', fontSize: '0.8rem' }}>
+                                                        {appliedDiscount.type === 'percentage' ? `${appliedDiscount.value}% off` : 'Fixed discount'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
 
                         <div className="right-col">
@@ -173,17 +346,55 @@ const CheckoutPage = () => {
                                         <div key={index} className="summary-item">
                                             <div className="item-info">
                                                 <span className="item-name">{item.name}</span>
-                                                <span className="item-brand">{item.brand} | {item.year}</span>
+                                                <span className="item-brand">{item.brand} | {item.compatibleYears?.join(', ') || item.year}</span>
                                             </div>
-                                            <div className="item-price">
-                                                {item.currency} {Number(item.price).toLocaleString()}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <div className="item-price">
+                                                    {item.currency} {Number(item.price).toLocaleString()}
+                                                </div>
+                                                <button
+                                                    onClick={() => removeFromCart(index)}
+                                                    style={{
+                                                        background: '#e74c3c',
+                                                        border: 'none',
+                                                        color: '#fff',
+                                                        width: '30px',
+                                                        height: '30px',
+                                                        borderRadius: '5px',
+                                                        cursor: 'pointer',
+                                                        fontSize: '14px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        transition: 'all 0.2s'
+                                                    }}
+                                                    onMouseEnter={(e) => e.target.style.background = '#c0392b'}
+                                                    onMouseLeave={(e) => e.target.style.background = '#e74c3c'}
+                                                    title="Remove from cart"
+                                                >
+                                                    <i className="fas fa-trash"></i>
+                                                </button>
                                             </div>
                                         </div>
                                     ))}
                                 </div>
-                                <div className="summary-total">
-                                    <span>Total</span>
-                                    <span>{currency} {total.toLocaleString()}</span>
+                                <div style={{ borderTop: '1px solid #333', paddingTop: '15px', marginTop: '15px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', color: '#ccc' }}>
+                                        <span>Subtotal</span>
+                                        <span>{currency} {subtotal.toLocaleString()}</span>
+                                    </div>
+
+                                    {appliedDiscount && (
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', color: '#2ecc71' }}>
+                                            <span>Discount ({appliedDiscount.code})</span>
+                                            <span>-{currency} {appliedDiscount.amount.toLocaleString()}</span>
+                                        </div>
+                                    )}
+
+                                    <div className="summary-total">
+                                        <span>Total</span>
+                                        <span>{currency} {total.toLocaleString()}</span>
+                                    </div>
                                 </div>
                             </div>
 
